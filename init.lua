@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
@@ -102,7 +102,7 @@ vim.g.have_nerd_font = false
 vim.opt.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -156,6 +156,18 @@ vim.opt.cursorline = true
 -- Minimal number of screen lines to keep above and below the cursor.
 vim.opt.scrolloff = 10
 
+-- Number of spaced a <Tab> counts for
+vim.opt.tabstop = 4
+
+-- Number of spaces used for autoindent
+vim.opt.shiftwidth = 4
+
+-- Number of spaces to use for editing operations like inserting or deleting a tab
+vim.opt.softtabstop = 4
+
+-- Use spaces instead of tabs
+vim.opt.expandtab = true
+
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
@@ -165,6 +177,11 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+
+-- Vim quality of life keymaps for like space w to save and then q to quit and p to format.
+vim.keymap.set('n', '<leader>w', ':w!<CR>', { desc = 'Save', noremap = true, silent = true })
+vim.keymap.set('n', '<leader>q', ':q!<CR>', { desc = 'Force Quit', noremap = true, silent = true })
+vim.keymap.set('n', '<leader>p', ':lua vim.lsp.buf.format()<CR>', { desc = 'Format Document', noremap = true, silent = true })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -242,6 +259,12 @@ require('lazy').setup({
   --    require('gitsigns').setup({ ... })
   --
   -- See `:help gitsigns` to understand what the configuration keys do
+  {
+    -- A fun way to improve your Neovim skills with interactive games
+    'ThePrimeagen/vim-be-good',
+    cmd = 'VimBeGood',
+    desc = 'Interactive games to improve your Neovim skills',
+  },
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
     opts = {
@@ -255,6 +278,30 @@ require('lazy').setup({
     },
   },
 
+  {
+    'numToStr/Comment.nvim',
+    config = function()
+      require('Comment').setup()
+      -- Your keybindings for commenting...
+      vim.keymap.set({ 'n', 'x' }, '<leader>cc', function()
+        if vim.fn.mode() == 'n' then
+          require('Comment.api').toggle.linewise.current()
+        else
+          vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
+          require('Comment.api').toggle.linewise(vim.fn.visualmode())
+        end
+      end, { desc = 'Toggle line comment', noremap = true, silent = true })
+
+      vim.keymap.set({ 'n', 'x' }, '<leader>cb', function()
+        if vim.fn.mode() == 'n' then
+          require('Comment.api').toggle.blockwise.current()
+        else
+          vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
+          require('Comment.api').toggle.blockwise(vim.fn.visualmode())
+        end
+      end, { desc = 'Toggle block comment', noremap = true, silent = true })
+    end,
+  },
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
   -- This is often very useful to both group configuration, as well as handle
@@ -312,17 +359,23 @@ require('lazy').setup({
           F12 = '<F12>',
         },
       },
-
       -- Document existing key chains
-      spec = {
-        { '<leader>c', group = '[C]ode', mode = { 'n', 'x' } },
-        { '<leader>d', group = '[D]ocument' },
-        { '<leader>r', group = '[R]ename' },
-        { '<leader>s', group = '[S]earch' },
-        { '<leader>w', group = '[W]orkspace' },
-        { '<leader>t', group = '[T]oggle' },
-        { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
-      },
+      config = function(_, opts)
+        local wk = require 'which-key'
+        wk.setup(opts)
+        wk.register({
+          c = { name = '[C]ode' }, -- This just creates the group label
+          d = { name = '[D]ocument' },
+          r = { name = '[R]ename' },
+          s = { name = '[S]earch' },
+          w = { name = '[W]orkspace' },
+          t = { name = '[T]oggle' },
+          h = { name = 'Git [H]unk' },
+        }, { prefix = '<leader>', mode = 'n' })
+        wk.register({
+          c = { name = '[C]ode' },
+        }, { prefix = '<leader>', mode = 'v' })
+      end,
     },
   },
 
@@ -666,17 +719,16 @@ require('lazy').setup({
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
-      require('mason-lspconfig').setup {
-        handlers = {
-          function(server_name)
-            local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for ts_ls)
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
-          end,
-        },
+      require('mason-lspconfig').setup_handlers {
+        function(server_name)
+          local server_opts = servers[server_name] or {}
+          -- This handles overriding only values explicitly passed
+          -- by the server configuration above. Useful when disabling
+          -- certain features of an LSP (for example, turning off formatting for ts_ls)
+          server_opts.capabilities =
+            vim.tbl_deep_extend('force', {}, capabilities, require('cmp_nvim_lsp').default_capabilities(), server_opts.capabilities or {})
+          require('lspconfig')[server_name].setup(server_opts)
+        end,
       }
     end,
   },
@@ -851,8 +903,57 @@ require('lazy').setup({
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      vim.opt.termguicolors = true -- Enable 24-bit color
 
+      require('tokyonight').setup {
+        style = 'night', -- Choose your style: "night", "storm", "moon", etc.
+        light_style = 'day', -- The style for light mode
+        transparent = false, -- Disable transparency (set to true if you want it)
+        terminal_colors = true, -- Use the theme colors for the built-in terminal
+        dim_inactive = false, -- Don't dim inactive windows
+        day_brightness = 0.3, -- Adjust brightness for the day style
+        lualine_bold = false, -- Whether to use bold fonts in lualine
+        -- Provide a minimal styles table. You can expand this as needed.
+        styles = {
+          comments = { italic = true },
+          keywords = { italic = true },
+          functions = {},
+          variables = {},
+          sidebars = 'dark',
+          floats = 'dark',
+        },
+        cache = false,
+        plugins = {},
+        -- Supply a dummy on_colors function if you don't need to override them.
+        on_colors = function()
+          -- No need to return anything
+        end,
+        -- Override highlight groups as desired.
+        on_highlights = function(hl)
+          hl.LineNr = { fg = '#FFD700', bold = true } -- Golden line numbers
+          hl.CursorLineNr = { fg = '#FF4500', bold = true } -- Orange-red for the active line number
+        end,
+      }
+      -- vim.cmd 'colorscheme tokyonight-night'
+      -- vim.cmd 'colorscheme tokyonight-night'
+      vim.cmd 'colorscheme tokyonight-night' -- Set the theme explicitly
+      -- vim.cmd.colorscheme 'tokyonight-night'
+      -- vim.cmd [[
+      --   augroup CustomHighlights
+      --     autocmd!
+      --     autocmd ColorScheme * highlight LineNr guifg=#FFD700
+      --     autocmd ColorScheme * highlight CursorLineNr guifg=#FF4500
+      --   augroup END
+      -- ]]
+      -- vim.api.nvim_set_hl(0, 'LineNr', { fg = '#FFD700' })
+      -- vim.api.nvim_set_hl(0, 'CursorLineNr', { fg = '#FF4500' })
+      -- vim.cmd [[
+      --   augroup CustomLineNumberColors
+      --     autocmd!
+      --     autocmd ColorScheme * lua vim.api.nvim_set_hl(0, 'LineNr', { fg = "#FFD700" })
+      --     autocmd ColorScheme * lua vim.api.nvim_set_hl(0, 'CursorLineNr', { fg = "#FF4500" })
+      --   augroup END
+      -- ]]
       -- You can configure highlights by doing something like:
       vim.cmd.hi 'Comment gui=none'
     end,
@@ -904,7 +1005,27 @@ require('lazy').setup({
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+      ensure_installed = {
+        'python',
+        'javascript',
+        'java',
+        'cpp',
+        'typescript',
+        'html',
+        'css',
+        'json',
+        'bash',
+        'c',
+        'diff',
+        'html',
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'query',
+        'vim',
+        'vimdoc',
+      },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
@@ -936,8 +1057,8 @@ require('lazy').setup({
   -- require 'kickstart.plugins.debug',
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.autopairs',
+  require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
@@ -950,7 +1071,46 @@ require('lazy').setup({
   -- Or use telescope!
   -- In normal mode type `<space>sh` then write `lazy.nvim-plugin`
   -- you can continue same window with `<space>sr` which resumes last telescope search
+
+  -- This is where to add my own plugins
+
+  {
+    'nvim-tree/nvim-tree.lua',
+    requires = { 'nvim-tree/nvim-web-devicons' },
+    config = function()
+      require('nvim-tree').setup {
+        filters = {
+          dotfiles = false, -- Show dotfiles like .env.local
+          custom = {}, -- Ensure no extra custom filters are hiding .env.local
+        },
+      }
+    end,
+  },
+  vim.api.nvim_set_keymap('n', '<leader>e', ':NvimTreeToggle<CR>', { noremap = true, silent = true }),
+
+  {
+    'L3MON4D3/LuaSnip',
+    config = function()
+      -- Load custom snippets
+      require 'custom.snippets'
+    end,
+  },
+  {
+    'nvim-tree/nvim-web-devicons',
+    opts = { default = true },
+  },
+
+  vim.keymap.set('n', '<leader>P', ':put!<CR>', { desc = 'Paste below on a new line' }),
+  vim.keymap.set('n', '<leader>p', ':put<CR>', { desc = 'Paste below on a new line' }),
+
+  -- Remap visual mode indent/outdent to remain in Visual mode:
+  vim.keymap.set('v', '>', '>gv', { noremap = true, silent = true }),
+  vim.keymap.set('v', '<', '<gv', { noremap = true, silent = true }),
 }, {
+  root = vim.fn.stdpath 'data' .. '/lazy',
+  defaults = {},
+  spec = {},
+  local_spec = {},
   ui = {
     -- If you are using a Nerd Font: set icons to an empty table which will use the
     -- default lazy.nvim defined Nerd Font icons, otherwise define a unicode icons table
@@ -971,6 +1131,5 @@ require('lazy').setup({
     },
   },
 })
-
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
