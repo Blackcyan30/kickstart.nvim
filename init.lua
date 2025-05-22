@@ -180,7 +180,7 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 
 -- Vim quality of life keymaps for like space w to save and then q to quit and p to format.
 vim.keymap.set('n', '<leader>w', ':w!<CR>', { desc = 'Save', noremap = true, silent = true })
-vim.keymap.set('n', '<leader>q', ':q!<CR>', { desc = 'Force Quit', noremap = true, silent = true })
+vim.keymap.set('n', '<leader>Q', ':q!<CR>', { desc = 'Force Quit', noremap = true, silent = true })
 vim.keymap.set('n', '<leader>p', ':lua vim.lsp.buf.format()<CR>', { desc = 'Format Document', noremap = true, silent = true })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
@@ -232,6 +232,24 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end ---@diagnostic disable-next-line: undefined-field
 vim.opt.rtp:prepend(lazypath)
 
+-- Add correct runtime paths to package.path
+package.path = package.path
+  .. ';/usr/share/nvim/runtime/lua/?.lua'
+  .. ';/usr/share/nvim/runtime/lua/?/init.lua'
+  .. ';/usr/local/share/lua/5.1/?.lua'
+  .. ';/usr/local/share/lua/5.1/?/init.lua'
+  .. ';'
+  .. vim.fn.stdpath 'data'
+  .. '/lazy/?.lua'
+  .. ';'
+  .. vim.fn.stdpath 'data'
+  .. '/lazy/?/init.lua'
+  .. ';'
+  .. vim.fn.stdpath 'config'
+  .. '/lua/?.lua'
+  .. ';'
+  .. vim.fn.stdpath 'config'
+  .. '/lua/?/init.lua'
 -- [[ Configure and install plugins ]]
 --
 --  To check the current status of your plugins, run
@@ -1025,6 +1043,7 @@ require('lazy').setup({
         'query',
         'vim',
         'vimdoc',
+        'fsharp',
       },
       -- Autoinstall languages that are not installed
       auto_install = true,
